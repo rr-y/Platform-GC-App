@@ -57,6 +57,24 @@ npx expo install <package> -- --legacy-peer-deps
 eas build --platform android
 ```
 
+## Git workflow
+Every new feature must follow this flow — no exceptions:
+1. Create a branch: `git checkout -b feature/<name>` (or `fix/<name>` for bug fixes)
+2. Make changes on the branch
+3. Test manually in browser/device — verify the feature works end to end
+4. Commit on the branch
+5. Push and raise a PR to `main` — never commit directly to `main`
+
+```bash
+git checkout -b feature/my-feature
+# ... make changes ...
+npx expo start --web   # verify it works
+git add <files>
+git commit -m "feat: description"
+git push -u origin feature/my-feature
+# then open PR on GitHub
+```
+
 ## Key rules
 - `EXPO_PUBLIC_API_URL` must be set in `.env` — never hardcode the API URL
 - `client.ts` always appends `/api/v1` to `EXPO_PUBLIC_API_URL`
