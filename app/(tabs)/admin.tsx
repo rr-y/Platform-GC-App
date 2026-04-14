@@ -9,6 +9,7 @@ import {
   Text,
   TextInput,
 } from 'react-native-paper';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useMutation } from '@tanstack/react-query';
 import { adminCheckout, lookupCustomer } from '../../src/api/admin';
 import type { CheckoutResult, CustomerLookup } from '../../src/api/admin';
@@ -255,7 +256,7 @@ export default function AdminCheckoutScreen() {
     return (
       <ScrollView contentContainerStyle={styles.container}>
         <View style={styles.successIcon}>
-          <Text style={styles.successEmoji}>✓</Text>
+          <MaterialCommunityIcons name="check-circle" size={72} color="#2e7d32" />
         </View>
         <Text variant="headlineSmall" style={[styles.heading, { textAlign: 'center' }]}>
           Payment Confirmed
@@ -359,16 +360,15 @@ const styles = StyleSheet.create({
   offerChips: { flexDirection: 'row', gap: 8 },
   offerChip: { marginRight: 4 },
   successIcon: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: '#e8f5e9',
     alignItems: 'center',
     justifyContent: 'center',
     alignSelf: 'center',
     marginBottom: 16,
+    shadowColor: '#2e7d32',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
   },
-  successEmoji: { fontSize: 32, color: '#2e7d32' },
   notifSent: { color: '#388e3c', textAlign: 'center', marginBottom: 16 },
   receiptRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6 },
   receiptLabel: { color: '#616161' },

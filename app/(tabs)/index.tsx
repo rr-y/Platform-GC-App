@@ -1,28 +1,53 @@
-import { ScrollView, StyleSheet, View } from 'react-native';
-import { Text, Divider, ActivityIndicator } from 'react-native-paper';
+import { useState } from 'react';
+import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import { Text, Divider } from 'react-native-paper';
 import { useQuery } from '@tanstack/react-query';
 import { CoinCard } from '../../src/components/CoinCard';
 import { ExpiryBanner } from '../../src/components/ExpiryBanner';
 import { TransactionItem } from '../../src/components/TransactionItem';
+import { SkeletonBox } from '../../src/components/SkeletonBox';
 import { getCoinBalance } from '../../src/api/coins';
 import { getMyTransactions } from '../../src/api/transactions';
 import { useAuthStore } from '../../src/store/auth';
 
+function SkeletonTransactionRow() {
+  return (
+    <View style={styles.skeletonRow}>
+      <View>
+        <SkeletonBox width={120} height={14} borderRadius={4} />
+        <SkeletonBox width={80} height={11} borderRadius={4} style={{ marginTop: 6 }} />
+      </View>
+      <SkeletonBox width={48} height={22} borderRadius={10} />
+    </View>
+  );
+}
+
 export default function HomeScreen() {
   const user = useAuthStore((s) => s.user);
 
-  const { data: balance, isLoading: balanceLoading } = useQuery({
+  const { data: balance, isLoading: balanceLoading, refetch: refetchBalance } = useQuery({
     queryKey: ['coinBalance'],
     queryFn: getCoinBalance,
   });
 
-  const { data: txns, isLoading: txnLoading } = useQuery({
+  const { data: txns, isLoading: txnLoading, refetch: refetchTxns } = useQuery({
     queryKey: ['recentTransactions'],
     queryFn: () => getMyTransactions(1, 3),
   });
 
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await Promise.all([refetchBalance(), refetchTxns()]);
+    setRefreshing(false);
+  };
+
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.content}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#6200ee']} tintColor="#6200ee" />}
+    >
       {user?.name && (
         <Text variant="titleMedium" style={styles.greeting}>
           Hi, {user.name} 👋
@@ -42,7 +67,14 @@ export default function HomeScreen() {
         <Text variant="titleMedium" style={styles.sectionTitle}>Recent Transactions</Text>
         <Divider />
         {txnLoading ? (
-          <ActivityIndicator style={styles.loader} />
+          <>
+            {[...Array(3)].map((_, i) => (
+              <View key={i}>
+                <SkeletonTransactionRow />
+                {i < 2 && <Divider />}
+              </View>
+            ))}
+          </>
         ) : txns?.items.length === 0 ? (
           <Text style={styles.empty}>No transactions yet.</Text>
         ) : (
@@ -59,6 +91,12 @@ const styles = StyleSheet.create({
   greeting: { margin: 16, marginBottom: 0, color: '#424242' },
   section: { backgroundColor: '#fff', margin: 16, borderRadius: 8, overflow: 'hidden' },
   sectionTitle: { padding: 16, fontWeight: 'bold' },
-  loader: { padding: 24 },
+  skeletonRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
   empty: { padding: 16, color: '#9e9e9e', textAlign: 'center' },
 });

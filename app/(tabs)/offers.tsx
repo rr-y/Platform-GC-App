@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { Text, Card, Button, TextInput, HelperText, Divider, Chip, ActivityIndicator } from 'react-native-paper';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { getAvailableOffers, validateCoupon, AvailableOffer } from '../../src/api/coupons';
@@ -13,10 +13,17 @@ export default function OffersScreen() {
     message?: string;
   } | null>(null);
 
-  const { data: offers, isLoading } = useQuery({
+  const { data: offers, isLoading, refetch: refetchOffers } = useQuery({
     queryKey: ['availableOffers'],
     queryFn: () => getAvailableOffers(),
   });
+
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await refetchOffers();
+    setRefreshing(false);
+  };
 
   const { mutate: checkCoupon, isPending } = useMutation({
     mutationFn: () => validateCoupon(code.trim().toUpperCase(), 0),
@@ -30,7 +37,11 @@ export default function OffersScreen() {
   });
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.content}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#6200ee']} tintColor="#6200ee" />}
+    >
       {/* Coupon code checker */}
       <View style={styles.section}>
         <Text variant="titleMedium" style={styles.sectionTitle}>Check a Coupon</Text>

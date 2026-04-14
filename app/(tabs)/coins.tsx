@@ -1,8 +1,10 @@
+import { useState } from 'react';
 import { FlatList, StyleSheet, View } from 'react-native';
-import { Text, Divider, Chip, ActivityIndicator } from 'react-native-paper';
+import { Text, Divider, Chip, ActivityIndicator, Icon } from 'react-native-paper';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { CoinCard } from '../../src/components/CoinCard';
 import { ExpiryBanner } from '../../src/components/ExpiryBanner';
+import { SkeletonBox } from '../../src/components/SkeletonBox';
 import { getCoinBalance, getCoinHistory } from '../../src/api/coins';
 import { formatDate } from '../../src/utils/format';
 
@@ -18,14 +20,35 @@ const TYPE_TEXT: Record<string, string> = {
   expired: '#757575',
   adjusted: '#1565c0',
 };
+const TYPE_ICONS: Record<string, string> = {
+  earned: 'arrow-up-circle',
+  redeemed: 'arrow-down-circle',
+  expired: 'clock-outline',
+  adjusted: 'pencil-circle',
+};
+
+function SkeletonHistoryRow() {
+  return (
+    <View style={styles.row}>
+      <View style={styles.rowLeft}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <SkeletonBox width={28} height={28} borderRadius={14} />
+          <SkeletonBox width={64} height={20} borderRadius={10} />
+        </View>
+        <SkeletonBox width={80} height={12} borderRadius={4} style={{ marginTop: 4 }} />
+      </View>
+      <SkeletonBox width={40} height={20} borderRadius={4} />
+    </View>
+  );
+}
 
 export default function CoinsScreen() {
-  const { data: balance, isLoading: balanceLoading } = useQuery({
+  const { data: balance, isLoading: balanceLoading, refetch: refetchBalance } = useQuery({
     queryKey: ['coinBalance'],
     queryFn: getCoinBalance,
   });
 
-  const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } = useInfiniteQuery({
+  const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading, refetch: refetchHistory } = useInfiniteQuery({
     queryKey: ['coinHistory'],
     queryFn: ({ pageParam = 1 }) => getCoinHistory(pageParam, 20),
     getNextPageParam: (last) =>
@@ -35,8 +58,17 @@ export default function CoinsScreen() {
 
   const allItems = data?.pages.flatMap((p) => p.items) ?? [];
 
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await Promise.all([refetchBalance(), refetchHistory()]);
+    setRefreshing(false);
+  };
+
   return (
     <FlatList
+      refreshing={refreshing}
+      onRefresh={onRefresh}
       style={styles.container}
       ListHeaderComponent={
         <>
@@ -49,31 +81,47 @@ export default function CoinsScreen() {
           )}
           <Text variant="titleMedium" style={styles.historyTitle}>Coin History</Text>
           <Divider />
-          {isLoading && <ActivityIndicator style={styles.loader} />}
+          {isLoading && (
+            <>
+              {[...Array(6)].map((_, i) => (
+                <View key={i}>
+                  <SkeletonHistoryRow />
+                  <Divider />
+                </View>
+              ))}
+            </>
+          )}
         </>
       }
       data={allItems}
       keyExtractor={(item) => item.id}
-      renderItem={({ item }) => (
-        <View style={styles.row}>
-          <View style={styles.rowLeft}>
-            <Chip
-              compact
-              textStyle={{ color: TYPE_TEXT[item.type] ?? '#212121', fontSize: 11 }}
-              style={{ backgroundColor: TYPE_COLORS[item.type] ?? '#f5f5f5' }}
+      renderItem={({ item }) => {
+        const iconName = TYPE_ICONS[item.type] ?? 'circle-outline';
+        const iconColor = TYPE_TEXT[item.type] ?? '#212121';
+        return (
+          <View style={styles.row}>
+            <View style={styles.rowLeft}>
+              <View style={styles.typeRow}>
+                <Icon source={iconName} size={22} color={iconColor} />
+                <Chip
+                  compact
+                  textStyle={{ color: iconColor, fontSize: 11 }}
+                  style={{ backgroundColor: TYPE_COLORS[item.type] ?? '#f5f5f5' }}
+                >
+                  {item.type}
+                </Chip>
+              </View>
+              <Text variant="bodySmall" style={styles.date}>{formatDate(item.issued_at)}</Text>
+            </View>
+            <Text
+              variant="titleMedium"
+              style={{ color: item.coins >= 0 ? '#2e7d32' : '#c62828', fontWeight: 'bold' }}
             >
-              {item.type}
-            </Chip>
-            <Text variant="bodySmall" style={styles.date}>{formatDate(item.issued_at)}</Text>
+              {item.coins >= 0 ? '+' : ''}{item.coins}
+            </Text>
           </View>
-          <Text
-            variant="titleMedium"
-            style={{ color: item.coins >= 0 ? '#2e7d32' : '#c62828', fontWeight: 'bold' }}
-          >
-            {item.coins >= 0 ? '+' : ''}{item.coins}
-          </Text>
-        </View>
-      )}
+        );
+      }}
       ItemSeparatorComponent={() => <Divider />}
       onEndReached={() => hasNextPage && fetchNextPage()}
       onEndReachedThreshold={0.3}
@@ -97,6 +145,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
   },
   rowLeft: { gap: 4 },
+  typeRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   date: { color: '#9e9e9e' },
   loader: { padding: 24 },
   empty: { padding: 24, color: '#9e9e9e', textAlign: 'center' },
