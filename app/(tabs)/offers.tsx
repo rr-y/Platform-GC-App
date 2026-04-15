@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import { ImageBackground, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { Text, Card, Button, TextInput, HelperText, Divider, Chip, ActivityIndicator } from 'react-native-paper';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { getAvailableOffers, validateCoupon, AvailableOffer } from '../../src/api/coupons';
+import { validateCoupon } from '../../src/api/coupons';
+import { getOfferBanners, OfferBannerItem } from '../../src/api/offers';
 import { formatCurrency } from '../../src/utils/format';
 
 export default function OffersScreen() {
@@ -14,8 +15,9 @@ export default function OffersScreen() {
   } | null>(null);
 
   const { data: offers, isLoading, refetch: refetchOffers } = useQuery({
-    queryKey: ['availableOffers'],
-    queryFn: () => getAvailableOffers(),
+    queryKey: ['offerBanners'],
+    queryFn: getOfferBanners,
+    staleTime: 5 * 60 * 1000,
   });
 
   const [refreshing, setRefreshing] = useState(false);
@@ -93,7 +95,7 @@ export default function OffersScreen() {
           <Text style={styles.empty}>No offers available right now.</Text>
         ) : (
           offers.map((offer) => (
-            <OfferCard key={offer.coupon_id} offer={offer} />
+            <OfferCard key={offer.campaign_id} offer={offer} />
           ))
         )}
       </View>
@@ -101,23 +103,56 @@ export default function OffersScreen() {
   );
 }
 
-function OfferCard({ offer }: { offer: AvailableOffer }) {
+function OfferCard({ offer }: { offer: OfferBannerItem }) {
+  const discountLabel =
+    offer.discount_type === 'percentage'
+      ? `${offer.discount_value}% off`
+      : `Flat ₹${offer.discount_value} off`;
+
+  const expiryDate = new Date(offer.valid_to).toLocaleDateString('en-IN', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  });
+
   return (
     <Card style={styles.offerCard} mode="outlined">
-      <Card.Content>
-        <View style={styles.offerHeader}>
-          <Text variant="titleSmall" style={styles.offerTitle}>{offer.campaign_title}</Text>
-          {!offer.is_auto_apply && offer.code && (
-            <Chip compact textStyle={styles.codeText} style={styles.codeChip}>
-              {offer.code}
-            </Chip>
-          )}
+      {offer.image_url ? (
+        <ImageBackground
+          source={{ uri: offer.image_url }}
+          style={styles.offerImage}
+          imageStyle={styles.offerImageStyle}
+          resizeMode="cover"
+        >
+          <View style={styles.imageOverlay} />
+          <View style={styles.imageBadge}>
+            <Text style={styles.imageBadgeText}>{discountLabel}</Text>
+          </View>
+        </ImageBackground>
+      ) : (
+        <View style={[styles.offerImage, styles.offerImagePlaceholder]}>
+          <Text style={styles.imageBadgeText}>{discountLabel}</Text>
         </View>
-        <Text variant="bodySmall" style={styles.offerDesc}>
-          {offer.discount_type === 'percentage'
-            ? `${offer.discount_value}% off`
-            : `Flat ₹${offer.discount_value} off`}
-          {offer.is_auto_apply ? '  •  Auto-applied at checkout' : ''}
+      )}
+      <Card.Content style={styles.offerContent}>
+        <View style={styles.offerHeader}>
+          <Text variant="titleSmall" style={styles.offerTitle}>{offer.title}</Text>
+          {offer.coupon_code && !offer.is_auto_apply ? (
+            <Chip compact textStyle={styles.codeText} style={styles.codeChip}>
+              {offer.coupon_code}
+            </Chip>
+          ) : offer.is_auto_apply ? (
+            <Chip compact textStyle={styles.autoText} style={styles.autoChip}>
+              Auto-applied
+            </Chip>
+          ) : null}
+        </View>
+        {offer.description && (
+          <Text variant="bodySmall" style={styles.offerDesc}>{offer.description}</Text>
+        )}
+        <Text variant="bodySmall" style={styles.offerMeta}>
+          {offer.min_order_value > 0 ? `Min ₹${offer.min_order_value}  •  ` : ''}
+          Ends {expiryDate}
         </Text>
       </Card.Content>
     </Card>
@@ -136,10 +171,26 @@ const styles = StyleSheet.create({
   successText: { color: '#2e7d32' },
   loader: { padding: 24 },
   empty: { padding: 16, color: '#9e9e9e', textAlign: 'center' },
-  offerCard: { margin: 12, marginTop: 8 },
+  offerCard: { marginHorizontal: 12, marginTop: 8, marginBottom: 4, borderRadius: 10, overflow: 'hidden' },
+  offerImage: { height: 100, justifyContent: 'flex-end', alignItems: 'flex-end' },
+  offerImageStyle: { borderTopLeftRadius: 10, borderTopRightRadius: 10 },
+  offerImagePlaceholder: { backgroundColor: '#6200ee', padding: 12 },
+  imageOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.25)' },
+  imageBadge: {
+    backgroundColor: '#ffab00',
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    margin: 8,
+  },
+  imageBadgeText: { color: '#212121', fontWeight: 'bold', fontSize: 12 },
+  offerContent: { paddingTop: 10 },
   offerHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
   offerTitle: { flex: 1, fontWeight: 'bold', marginRight: 8 },
   codeChip: { backgroundColor: '#e8f5e9' },
   codeText: { color: '#2e7d32', fontSize: 11, fontWeight: 'bold' },
-  offerDesc: { color: '#757575', marginTop: 2 },
+  autoChip: { backgroundColor: '#ede7f6' },
+  autoText: { color: '#6200ee', fontSize: 10 },
+  offerDesc: { color: '#616161', marginBottom: 4 },
+  offerMeta: { color: '#9e9e9e', marginTop: 2 },
 });
