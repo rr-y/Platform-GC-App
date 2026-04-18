@@ -4,6 +4,8 @@ import { Slot, useRouter, useSegments } from 'expo-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { PaperProvider, MD3LightTheme } from 'react-native-paper';
 import { useAuthStore } from '../src/store/auth';
+import { registerPushToken } from '../src/api/users';
+import { getPushToken } from '../src/utils/notifications';
 
 const MIN_SPLASH_MS = 2500;
 
@@ -51,6 +53,19 @@ function AuthGuard() {
       router.replace('/(tabs)/');
     }
   }, [isAuthenticated, showSplash, segments]);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    // Fire-and-forget; push is opt-in, never block login on it.
+    (async () => {
+      try {
+        const token = await getPushToken();
+        if (token) await registerPushToken(token);
+      } catch (e) {
+        console.warn('[push] token registration skipped:', e);
+      }
+    })();
+  }, [isAuthenticated]);
 
   if (showSplash) return <GCSplashScreen />;
   return <Slot />;
