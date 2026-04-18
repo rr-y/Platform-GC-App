@@ -6,8 +6,10 @@ import { CoinCard } from '../../src/components/CoinCard';
 import { ExpiryBanner } from '../../src/components/ExpiryBanner';
 import { TransactionItem } from '../../src/components/TransactionItem';
 import { SkeletonBox } from '../../src/components/SkeletonBox';
+import { OfferBannerCarousel } from '../../src/components/OfferBannerCarousel';
 import { getCoinBalance } from '../../src/api/coins';
 import { getMyTransactions } from '../../src/api/transactions';
+import { getOfferBanners } from '../../src/api/offers';
 import { useAuthStore } from '../../src/store/auth';
 
 function SkeletonTransactionRow() {
@@ -35,10 +37,16 @@ export default function HomeScreen() {
     queryFn: () => getMyTransactions(1, 3),
   });
 
+  const { data: banners, isLoading: bannersLoading, refetch: refetchBanners } = useQuery({
+    queryKey: ['offerBanners'],
+    queryFn: getOfferBanners,
+    staleTime: 5 * 60 * 1000,
+  });
+
   const [refreshing, setRefreshing] = useState(false);
   const onRefresh = async () => {
     setRefreshing(true);
-    await Promise.all([refetchBalance(), refetchTxns()]);
+    await Promise.all([refetchBalance(), refetchTxns(), refetchBanners()]);
     setRefreshing(false);
   };
 
@@ -53,6 +61,8 @@ export default function HomeScreen() {
           Hi, {user.name} 👋
         </Text>
       )}
+
+      <OfferBannerCarousel data={banners ?? []} loading={bannersLoading} />
 
       <CoinCard balance={balance?.total_active_coins ?? 0} loading={balanceLoading} />
 
@@ -88,7 +98,7 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f5f5f5' },
   content: { paddingBottom: 32 },
-  greeting: { margin: 16, marginBottom: 0, color: '#424242' },
+  greeting: { marginHorizontal: 16, marginTop: 16, marginBottom: 12, color: '#424242' },
   section: { backgroundColor: '#fff', margin: 16, borderRadius: 8, overflow: 'hidden' },
   sectionTitle: { padding: 16, fontWeight: 'bold' },
   skeletonRow: {

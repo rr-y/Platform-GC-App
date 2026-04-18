@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { saveTokens, getAccessToken, getRefreshToken, clearTokens } from '../utils/tokens';
 import { registerLogoutCallback } from '../api/client';
+import { getProfile } from '../api/coins';
 
 type User = {
   user_id: string;
@@ -41,7 +42,17 @@ export const useAuthStore = create<AuthState>((set, get) => {
 
     restoreSession: async () => {
       const token = await getAccessToken();
-      set({ isLoading: false, isAuthenticated: !!token });
+      if (!token) {
+        set({ isLoading: false, isAuthenticated: false });
+        return;
+      }
+      try {
+        const user = await getProfile();
+        set({ user, isAuthenticated: true, isLoading: false });
+      } catch {
+        // Token invalid / refresh failed — axios interceptor already called logout
+        set({ isLoading: false, isAuthenticated: false });
+      }
     },
 
     updateUser: (partial) => {
