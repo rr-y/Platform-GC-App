@@ -15,13 +15,19 @@ import {
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import * as ImagePicker from 'expo-image-picker';
-import { adminCheckout, lookupCustomer } from '../../src/api/admin';
+import {
+  adminCheckout,
+  inviteCustomer,
+  lookupCustomer,
+  verifyCustomerOtpOnBehalf,
+} from '../../src/api/admin';
 import type { CheckoutResult, CustomerLookup } from '../../src/api/admin';
 import { getCampaigns, toggleCampaign } from '../../src/api/campaigns';
 import type { Campaign } from '../../src/api/campaigns';
 import { uploadOfferImage } from '../../src/utils/cloudinary';
+import { OtpInput } from '../../src/components/OtpInput';
 
-type Phase = 'lookup' | 'confirm' | 'receipt';
+type Phase = 'lookup' | 'invite' | 'confirm' | 'receipt';
 type AdminTab = 'checkout' | 'offers';
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -37,6 +43,7 @@ function CheckoutPanel() {
   const [receipt, setReceipt] = useState<CheckoutResult | null>(null);
   const [phase, setPhase] = useState<Phase>('lookup');
   const [error, setError] = useState('');
+  const [canInvite, setCanInvite] = useState(false);
 
   const lookup = useMutation({
     mutationFn: () => lookupCustomer(mobile.trim(), parseFloat(amount)),
@@ -45,12 +52,50 @@ function CheckoutPanel() {
       setCoinsToRedeem('');
       setCouponCode('');
       setError('');
+      setCanInvite(false);
       setPhase('confirm');
     },
     onError: (e: any) => {
+      const notFound = e?.response?.status === 404;
       setError(e?.response?.data?.detail ?? 'Customer not found.');
+      setCanInvite(notFound);
     },
   });
+
+  const invite = useMutation({
+    mutationFn: () => inviteCustomer(mobile.trim()),
+    onError: (e: any) => {
+      setError(e?.response?.data?.detail ?? 'Could not send OTP. Try again.');
+    },
+  });
+
+  const verify = useMutation({
+    mutationFn: (otp: string) => verifyCustomerOtpOnBehalf(mobile.trim(), otp),
+    onSuccess: () => {
+      setError('');
+      lookup.mutate();
+    },
+    onError: (e: any) => {
+      setError(e?.response?.data?.detail ?? 'Invalid OTP. Ask the customer to check and try again.');
+    },
+  });
+
+  const handleStartInvite = () => {
+    setError('');
+    setPhase('invite');
+    invite.mutate();
+  };
+
+  const handleResendOtp = () => {
+    setError('');
+    invite.mutate();
+  };
+
+  const handleCancelInvite = () => {
+    setError('');
+    setCanInvite(false);
+    setPhase('lookup');
+  };
 
   const checkout = useMutation({
     mutationFn: () =>
@@ -71,9 +116,15 @@ function CheckoutPanel() {
   });
 
   const handleReset = () => {
-    setMobile(''); setAmount(''); setCustomer(null);
-    setCoinsToRedeem(''); setCouponCode(''); setReceipt(null);
-    setError(''); setPhase('lookup');
+    setMobile('');
+    setAmount('');
+    setCustomer(null);
+    setCoinsToRedeem('');
+    setCouponCode('');
+    setReceipt(null);
+    setError('');
+    setCanInvite(false);
+    setPhase('lookup');
   };
 
   if (phase === 'lookup') {
@@ -86,7 +137,7 @@ function CheckoutPanel() {
         <TextInput
           label="Customer Mobile"
           value={mobile}
-          onChangeText={(t) => { setMobile(t); setError(''); }}
+          onChangeText={(t) => { setMobile(t); setError(''); setCanInvite(false); }}
           mode="outlined"
           keyboardType="phone-pad"
           placeholder="+91 98765 43210"
@@ -113,6 +164,70 @@ function CheckoutPanel() {
           icon="account-search"
         >
           Check Customer
+        </Button>
+
+        {canInvite && (
+          <Button
+            mode="outlined"
+            onPress={handleStartInvite}
+            disabled={!mobile.trim()}
+            style={styles.inviteButton}
+            contentStyle={styles.buttonContent}
+            icon="account-plus"
+          >
+            Invite new customer
+          </Button>
+        )}
+      </ScrollView>
+    );
+  }
+
+  // ── Phase 1.5 — Invite ─────────────────────────────────────────────────────
+  if (phase === 'invite') {
+    const sending = invite.isPending;
+    const verifying = verify.isPending || lookup.isPending;
+
+    return (
+      <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
+        <Text variant="headlineSmall" style={styles.heading}>Invite New Customer</Text>
+        <Text variant="bodyMedium" style={styles.sub}>
+          We sent an OTP to {mobile}. Ask the customer to read the code from their phone.
+        </Text>
+
+        {sending ? (
+          <View style={styles.inviteSending}>
+            <ActivityIndicator size="small" color="#6200ee" />
+            <Text variant="bodySmall" style={styles.inviteSendingText}>Sending OTP…</Text>
+          </View>
+        ) : (
+          <>
+            <OtpInput onComplete={(otp) => verify.mutate(otp)} />
+            {verifying && (
+              <View style={styles.inviteSending}>
+                <ActivityIndicator size="small" color="#6200ee" />
+                <Text variant="bodySmall" style={styles.inviteSendingText}>Verifying…</Text>
+              </View>
+            )}
+          </>
+        )}
+
+        {!!error && <HelperText type="error" visible>{error}</HelperText>}
+
+        <Button
+          mode="text"
+          onPress={handleResendOtp}
+          disabled={sending || verifying}
+          icon="refresh"
+          style={{ marginTop: 4 }}
+        >
+          Resend OTP
+        </Button>
+        <Button
+          mode="text"
+          onPress={handleCancelInvite}
+          disabled={verifying}
+        >
+          Cancel
         </Button>
       </ScrollView>
     );
@@ -505,4 +620,13 @@ const styles = StyleSheet.create({
   campaignType: { color: '#616161' },
   campaignDates: { color: '#9e9e9e', marginTop: 2 },
   usageText: { color: '#6200ee', marginTop: 2 },
+  inviteButton: { marginTop: 8 },
+  inviteSending: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginVertical: 24,
+  },
+  inviteSendingText: { color: '#757575' },
 });
