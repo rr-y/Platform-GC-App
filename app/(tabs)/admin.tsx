@@ -31,11 +31,17 @@ type Phase = 'lookup' | 'invite' | 'confirm' | 'receipt';
 type AdminTab = 'checkout' | 'offers';
 
 // FastAPI 422 errors return `detail` as an array of `{type, loc, msg, input}`;
-// other errors return it as a string. Coerce to a renderable string.
+// other errors return it as a string. Coerce to a renderable string, and
+// prefix with the field name so mismatches between the UI contract and the
+// backend schema are diagnosable.
 function getErrorMessage(e: any, fallback: string): string {
   const detail = e?.response?.data?.detail;
   if (typeof detail === 'string') return detail;
-  if (Array.isArray(detail) && detail[0]?.msg) return detail[0].msg;
+  if (Array.isArray(detail) && detail[0]?.msg) {
+    const first = detail[0];
+    const field = Array.isArray(first.loc) ? first.loc[first.loc.length - 1] : '';
+    return field ? `${field}: ${first.msg}` : first.msg;
+  }
   return fallback;
 }
 
