@@ -1,9 +1,11 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
 import { Slot, useRouter, useSegments } from 'expo-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { PaperProvider, MD3LightTheme } from 'react-native-paper';
 import { useAuthStore } from '../src/store/auth';
+
+const MIN_SPLASH_MS = 2500;
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 30_000 } },
@@ -30,22 +32,27 @@ function AuthGuard() {
   const { isAuthenticated, isLoading, restoreSession } = useAuthStore();
   const segments = useSegments();
   const router = useRouter();
+  const [splashElapsed, setSplashElapsed] = useState(false);
 
   useEffect(() => {
     restoreSession();
+    const timer = setTimeout(() => setSplashElapsed(true), MIN_SPLASH_MS);
+    return () => clearTimeout(timer);
   }, []);
 
+  const showSplash = isLoading || !splashElapsed;
+
   useEffect(() => {
-    if (isLoading) return;
+    if (showSplash) return;
     const inAuth = segments[0] === '(auth)';
     if (!isAuthenticated && !inAuth) {
       router.replace('/(auth)/mobile');
     } else if (isAuthenticated && inAuth) {
       router.replace('/(tabs)/');
     }
-  }, [isAuthenticated, isLoading, segments]);
+  }, [isAuthenticated, showSplash, segments]);
 
-  if (isLoading) return <GCSplashScreen />;
+  if (showSplash) return <GCSplashScreen />;
   return <Slot />;
 }
 
