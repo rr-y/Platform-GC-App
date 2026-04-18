@@ -30,6 +30,15 @@ import { OtpInput } from '../../src/components/OtpInput';
 type Phase = 'lookup' | 'invite' | 'confirm' | 'receipt';
 type AdminTab = 'checkout' | 'offers';
 
+// FastAPI 422 errors return `detail` as an array of `{type, loc, msg, input}`;
+// other errors return it as a string. Coerce to a renderable string.
+function getErrorMessage(e: any, fallback: string): string {
+  const detail = e?.response?.data?.detail;
+  if (typeof detail === 'string') return detail;
+  if (Array.isArray(detail) && detail[0]?.msg) return detail[0].msg;
+  return fallback;
+}
+
 // ══════════════════════════════════════════════════════════════════════════════
 // Checkout flow (unchanged)
 // ══════════════════════════════════════════════════════════════════════════════
@@ -57,7 +66,7 @@ function CheckoutPanel() {
     },
     onError: (e: any) => {
       const notFound = e?.response?.status === 404;
-      setError(e?.response?.data?.detail ?? 'Customer not found.');
+      setError(getErrorMessage(e, 'Customer not found.'));
       setCanInvite(notFound);
     },
   });
@@ -65,7 +74,7 @@ function CheckoutPanel() {
   const invite = useMutation({
     mutationFn: () => inviteCustomer(mobile.trim()),
     onError: (e: any) => {
-      setError(e?.response?.data?.detail ?? 'Could not send OTP. Try again.');
+      setError(getErrorMessage(e, 'Could not send OTP. Try again.'));
     },
   });
 
@@ -76,7 +85,7 @@ function CheckoutPanel() {
       lookup.mutate();
     },
     onError: (e: any) => {
-      setError(e?.response?.data?.detail ?? 'Invalid OTP. Ask the customer to check and try again.');
+      setError(getErrorMessage(e, 'Invalid OTP. Ask the customer to check and try again.'));
     },
   });
 
@@ -111,7 +120,7 @@ function CheckoutPanel() {
       setPhase('receipt');
     },
     onError: (e: any) => {
-      setError(e?.response?.data?.detail ?? 'Payment failed. Please try again.');
+      setError(getErrorMessage(e, 'Payment failed. Please try again.'));
     },
   });
 
