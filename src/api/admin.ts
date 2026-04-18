@@ -54,3 +54,24 @@ export async function adminCheckout(payload: {
   const { data } = await api.post('/admin/checkout', payload);
   return data;
 }
+
+export type InviteResult = {
+  message: string;
+  mobile_number: string;
+  expires_in_seconds: number;
+};
+
+export async function inviteCustomer(mobile_number: string): Promise<InviteResult> {
+  const { data } = await api.post('/admin/customers/invite', { mobile_number });
+  return data;
+}
+
+// Verifies the customer's OTP on their behalf to create the user record.
+// The backend returns tokens for the new customer; we intentionally discard
+// them so the admin stays logged in as admin.
+export async function verifyCustomerOtpOnBehalf(
+  mobile_number: string,
+  otp: string,
+): Promise<void> {
+  await api.post('/auth/otp/verify', { mobile_number, otp });
+}
