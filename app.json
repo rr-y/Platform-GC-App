@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Rewards App",
+    "name": "GC Super App",
     "slug": "platform-gc-app",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -9,8 +9,8 @@
     "scheme": "platformgc",
     "splash": {
       "image": "./assets/splash-icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#6200ee"
+      "resizeMode": "cover",
+      "backgroundColor": "#5c00d3"
     },
     "ios": {
       "supportsTablet": false,
@@ -31,7 +31,13 @@
     "plugins": [
       "expo-router",
       "expo-secure-store",
-      "expo-font"
+      "expo-font",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow $(PRODUCT_NAME) to access your photos to set offer images."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

@@ -98,7 +98,7 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f5f5f5' },
   content: { paddingBottom: 32 },
-  greeting: { margin: 16, marginBottom: 12, color: '#424242' },
+  greeting: { marginHorizontal: 16, marginTop: 16, marginBottom: 12, color: '#424242' },
   section: { backgroundColor: '#fff', margin: 16, borderRadius: 8, overflow: 'hidden' },
   sectionTitle: { padding: 16, fontWeight: 'bold' },
   skeletonRow: {
