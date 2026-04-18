@@ -48,6 +48,7 @@ export async function lookupCustomer(
 export async function adminCheckout(payload: {
   mobile_number: string;
   amount: number;
+  otp: string;
   coins_to_redeem?: number;
   coupon_code?: string;
 }): Promise<CheckoutResult> {

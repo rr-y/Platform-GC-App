@@ -27,7 +27,7 @@ import type { Campaign } from '../../src/api/campaigns';
 import { uploadOfferImage } from '../../src/utils/cloudinary';
 import { OtpInput } from '../../src/components/OtpInput';
 
-type Phase = 'lookup' | 'invite' | 'confirm' | 'receipt';
+type Phase = 'lookup' | 'invite' | 'confirm' | 'payment_otp' | 'receipt';
 type AdminTab = 'checkout' | 'offers';
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -98,10 +98,11 @@ function CheckoutPanel() {
   };
 
   const checkout = useMutation({
-    mutationFn: () =>
+    mutationFn: (otp: string) =>
       adminCheckout({
         mobile_number: mobile.trim(),
         amount: parseFloat(amount),
+        otp,
         coins_to_redeem: coinsToRedeem ? parseInt(coinsToRedeem, 10) : 0,
         coupon_code: couponCode.trim() || undefined,
       }),
@@ -114,6 +115,22 @@ function CheckoutPanel() {
       setError(e?.response?.data?.detail ?? 'Payment failed. Please try again.');
     },
   });
+
+  const handleStartPaymentOtp = () => {
+    setError('');
+    setPhase('payment_otp');
+    invite.mutate();
+  };
+
+  const handleResendPaymentOtp = () => {
+    setError('');
+    invite.mutate();
+  };
+
+  const handleBackToConfirm = () => {
+    setError('');
+    setPhase('confirm');
+  };
 
   const handleReset = () => {
     setMobile('');
@@ -322,17 +339,67 @@ function CheckoutPanel() {
         {!!error && <HelperText type="error" visible>{error}</HelperText>}
         <Button
           mode="contained"
-          onPress={() => checkout.mutate()}
-          loading={checkout.isPending}
-          disabled={checkout.isPending || parsedCoins > maxCoins}
+          onPress={handleStartPaymentOtp}
+          loading={invite.isPending}
+          disabled={invite.isPending || parsedCoins > maxCoins}
           style={styles.button}
           contentStyle={styles.buttonContent}
           icon="check-circle"
         >
           Confirm Payment
         </Button>
-        <Button mode="text" onPress={handleReset} disabled={checkout.isPending} style={{ marginTop: 4 }}>
+        <Button mode="text" onPress={handleReset} disabled={invite.isPending} style={{ marginTop: 4 }}>
           Cancel
+        </Button>
+      </ScrollView>
+    );
+  }
+
+  // ── Phase 2.5 — Payment OTP verification ───────────────────────────────────
+  if (phase === 'payment_otp' && customer) {
+    const sending = invite.isPending;
+    const processing = checkout.isPending;
+    const displayName = customer.name ?? customer.mobile_number;
+
+    return (
+      <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
+        <Text variant="headlineSmall" style={styles.heading}>Verify Customer</Text>
+        <Text variant="bodyMedium" style={styles.sub}>
+          We sent an OTP to {displayName} ({customer.mobile_number}). Ask the customer
+          to read the code from their phone to authorize this payment of
+          ₹{parseFloat(amount).toFixed(0)}.
+        </Text>
+
+        {sending ? (
+          <View style={styles.inviteSending}>
+            <ActivityIndicator size="small" color="#6200ee" />
+            <Text variant="bodySmall" style={styles.inviteSendingText}>Sending OTP…</Text>
+          </View>
+        ) : (
+          <>
+            <OtpInput onComplete={(otp) => checkout.mutate(otp)} />
+            {processing && (
+              <View style={styles.inviteSending}>
+                <ActivityIndicator size="small" color="#6200ee" />
+                <Text variant="bodySmall" style={styles.inviteSendingText}>Processing payment…</Text>
+              </View>
+            )}
+          </>
+        )}
+
+        {!!error && <HelperText type="error" visible>{error}</HelperText>}
+
+        <Button
+          mode="text"
+          onPress={handleResendPaymentOtp}
+          disabled={sending || processing}
+          icon="refresh"
+          style={{ marginTop: 4 }}
+        >
+          Resend OTP
+        </Button>
+        <Button mode="text" onPress={handleBackToConfirm} disabled={processing}>
+          Back
         </Button>
       </ScrollView>
     );
@@ -348,7 +415,7 @@ function CheckoutPanel() {
           Payment Confirmed
         </Text>
         {receipt.notification_sent && (
-          <Text variant="bodySmall" style={styles.notifSent}>WhatsApp/SMS sent to customer</Text>
+          <Text variant="bodySmall" style={styles.notifSent}>SMS sent to customer</Text>
         )}
         <Card style={styles.card} elevation={2}>
           <Card.Content>
