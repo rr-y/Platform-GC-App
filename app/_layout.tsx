@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, Image, ActivityIndicator, StyleSheet } from 'react-native';
 import { Slot, useRouter, useSegments } from 'expo-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { PaperProvider, MD3LightTheme } from 'react-native-paper';
@@ -21,7 +21,11 @@ const theme = {
 function GCSplashScreen() {
   return (
     <View style={styles.splash}>
-      <Text style={styles.logoGC}>GC</Text>
+      <Image
+        source={require('../assets/adaptive-icon.png')}
+        style={styles.logoImage}
+        resizeMode="contain"
+      />
       <Text style={styles.logoSuperApp}>Super App</Text>
       <Text style={styles.tagline}>Shop More · Save More</Text>
       <Text style={styles.offers}>Exciting Offers Await You</Text>
@@ -78,11 +82,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  logoGC: {
-    fontSize: 80,
-    fontWeight: '900',
-    color: '#fff',
-    letterSpacing: 6,
+  logoImage: {
+    width: 220,
+    height: 220,
+    marginBottom: 4,
   },
   logoSuperApp: {
     fontSize: 22,
