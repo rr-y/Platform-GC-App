@@ -14,14 +14,20 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.platformgc.app"
+      "bundleIdentifier": "com.platformgc.app",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#6200ee"
       },
-      "package": "com.platformgc.app"
+      "package": "com.platformgc.app",
+      "permissions": [
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "web": {
       "bundler": "metro",
