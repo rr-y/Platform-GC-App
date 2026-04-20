@@ -14,7 +14,7 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "gc.store.app",
+      "bundleIdentifier": "com.platformgc.app",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
@@ -24,7 +24,7 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#6200ee"
       },
-      "package": "gc.store.app",
+      "package": "com.platformgc.app",
       "permissions": []
     },
     "web": {
