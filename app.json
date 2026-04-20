@@ -25,9 +25,7 @@
         "backgroundColor": "#6200ee"
       },
       "package": "com.platformgc.app",
-      "permissions": [
-        "android.permission.RECORD_AUDIO"
-      ]
+      "permissions": []
     },
     "web": {
       "bundler": "metro",
