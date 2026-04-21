@@ -14,7 +14,7 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.platformgc.app",
+      "bundleIdentifier": "gc.store.app",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
@@ -24,7 +24,7 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#6200ee"
       },
-      "package": "com.platformgc.app",
+      "package": "gc.store.app",
       "permissions": []
     },
     "web": {
@@ -46,7 +46,8 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Allow $(PRODUCT_NAME) to access your photos to set offer images."
+          "photosPermission": "Allow $(PRODUCT_NAME) to access your photos to set offer images.",
+          "cameraPermission": false
         }
       ]
     ],
