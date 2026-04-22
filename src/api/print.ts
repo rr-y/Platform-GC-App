@@ -69,11 +69,18 @@ export async function uploadPrintFile(
   mimeType: string,
 ): Promise<PrintUpload> {
   const form = new FormData();
+  // React Native's FormData accepts { uri, name, type } — the native bridge
+  // turns this into a real multipart file part with a filename, which is what
+  // FastAPI's UploadFile expects.
   form.append('file', { uri, name, type: mimeType } as unknown as Blob);
   const { data } = await api.post('/print/upload', form, {
-    headers: { 'Content-Type': 'multipart/form-data' },
     // Uploads can exceed the default 10s, especially over mobile.
     timeout: 60000,
+    // Stop axios from running its default JSON transform, which serialises
+    // the FormData on RN and makes the `file` field arrive as a plain string
+    // on the server. Leaving Content-Type unset lets the native fetch layer
+    // add `multipart/form-data` WITH the required boundary.
+    transformRequest: (value) => value,
   });
   return data;
 }
