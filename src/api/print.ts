@@ -1,4 +1,8 @@
 import { api } from './client';
+import { getAccessToken } from '../utils/tokens';
+
+const UPLOAD_BASE_URL =
+  (process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:8000') + '/api/v1';
 
 export type PrintUpload = {
   upload_id: string;
@@ -68,21 +72,38 @@ export async function uploadPrintFile(
   name: string,
   mimeType: string,
 ): Promise<PrintUpload> {
+  // Use native fetch instead of the shared axios client so the React Native
+  // runtime assembles the multipart body itself. axios has repeatedly landed
+  // us with a `Content-Type: multipart/form-data` header stripped of its
+  // boundary, or a FormData body that its transform pipeline serialises to
+  // a string — in either case FastAPI's UploadFile sees the `file` field as
+  // plain text and returns 422 "Expected UploadFile, received: <class 'str'>".
+  //
+  // RN's fetch + FormData reliably emits a multipart part with a filename,
+  // which is the attribute Pydantic's UploadFile validator keys off to tell a
+  // file upload apart from a regular form field.
   const form = new FormData();
-  // React Native's FormData accepts { uri, name, type } — the native bridge
-  // turns this into a real multipart file part with a filename, which is what
-  // FastAPI's UploadFile expects.
   form.append('file', { uri, name, type: mimeType } as unknown as Blob);
-  const { data } = await api.post('/print/upload', form, {
-    // Uploads can exceed the default 10s, especially over mobile.
-    timeout: 60000,
-    // Stop axios from running its default JSON transform, which serialises
-    // the FormData on RN and makes the `file` field arrive as a plain string
-    // on the server. Leaving Content-Type unset lets the native fetch layer
-    // add `multipart/form-data` WITH the required boundary.
-    transformRequest: (value) => value,
+
+  const token = await getAccessToken();
+  const res = await fetch(`${UPLOAD_BASE_URL}/print/upload`, {
+    method: 'POST',
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    body: form as any,
   });
-  return data;
+
+  if (!res.ok) {
+    let detail: unknown = await res.text();
+    try {
+      detail = JSON.parse(detail as string);
+    } catch {
+      /* plain-text error */
+    }
+    const err: any = new Error('Upload failed');
+    err.response = { status: res.status, data: detail };
+    throw err;
+  }
+  return (await res.json()) as PrintUpload;
 }
 
 export async function estimatePrint(body: {
