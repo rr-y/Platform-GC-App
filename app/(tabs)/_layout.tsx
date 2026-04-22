@@ -103,6 +103,20 @@ export default function TabsLayout() {
             }}
           />
           <Tabs.Screen
+            name="print"
+            options={{
+              title: 'Print',
+              headerShown: false,
+              tabBarIcon: ({ color, size, focused }) => (
+                <MaterialCommunityIcons
+                  name={focused ? 'printer' : 'printer-outline'}
+                  color={color}
+                  size={size}
+                />
+              ),
+            }}
+          />
+          <Tabs.Screen
             name="admin"
             options={{
               title: 'Checkout',

@@ -24,11 +24,17 @@ import {
 import type { CheckoutResult, CustomerLookup } from '../../src/api/admin';
 import { getCampaigns, toggleCampaign } from '../../src/api/campaigns';
 import type { Campaign } from '../../src/api/campaigns';
+import {
+  adminCollectPrintJob,
+  adminLookupPrintByOtp,
+  type AdminPrintCollect,
+  type AdminPrintLookup,
+} from '../../src/api/print';
 import { uploadOfferImage } from '../../src/utils/cloudinary';
 import { OtpInput } from '../../src/components/OtpInput';
 
 type Phase = 'lookup' | 'invite' | 'confirm' | 'payment_otp' | 'receipt';
-type AdminTab = 'checkout' | 'offers';
+type AdminTab = 'checkout' | 'print' | 'offers';
 
 // FastAPI 422 errors return `detail` as an array of `{type, loc, msg, input}`;
 // other errors return it as a string. Coerce to a renderable string, and
@@ -607,6 +613,163 @@ function campaignAudienceStyle(audience: string) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
+// Print pickup panel
+// ══════════════════════════════════════════════════════════════════════════════
+
+function PrintPickupPanel() {
+  const [otpDigits, setOtpDigits] = useState('');
+  const [lookup, setLookup] = useState<AdminPrintLookup | null>(null);
+  const [receipt, setReceipt] = useState<AdminPrintCollect | null>(null);
+  const [error, setError] = useState('');
+
+  const lookupMutation = useMutation({
+    mutationFn: (otp: string) => adminLookupPrintByOtp(otp),
+    onSuccess: (data) => {
+      setLookup(data);
+      setReceipt(null);
+      setError('');
+    },
+    onError: (e: any) => {
+      setLookup(null);
+      const status = e?.response?.status;
+      setError(
+        status === 404
+          ? 'No ready-for-pickup job matches that OTP.'
+          : getErrorMessage(e, 'Lookup failed.'),
+      );
+    },
+  });
+
+  const collectMutation = useMutation({
+    mutationFn: () => adminCollectPrintJob(lookup!.job_id),
+    onSuccess: (data) => {
+      setReceipt(data);
+      setError('');
+    },
+    onError: (e: any) => setError(getErrorMessage(e, 'Could not record payment.')),
+  });
+
+  const handleLookup = () => {
+    const clean = otpDigits.trim();
+    if (!/^\d{4}$/.test(clean)) {
+      setError('Enter the customer\'s 4-digit pickup OTP.');
+      return;
+    }
+    lookupMutation.mutate(clean);
+  };
+
+  const handleReset = () => {
+    setOtpDigits('');
+    setLookup(null);
+    setReceipt(null);
+    setError('');
+  };
+
+  if (receipt) {
+    return (
+      <ScrollView contentContainerStyle={styles.container}>
+        <View style={styles.successIcon}>
+          <MaterialCommunityIcons name="check-circle" size={72} color="#2e7d32" />
+        </View>
+        <Text variant="headlineSmall" style={[styles.heading, { textAlign: 'center' }]}>
+          Print Collected
+        </Text>
+        <Card style={styles.card} elevation={2}>
+          <Card.Content>
+            <Row label="Paid in cash" value={`₹${receipt.final_amount.toFixed(2)}`} bold />
+            {receipt.coins_redeemed > 0 && (
+              <Row label={`Coins redeemed`} value={`${receipt.coins_redeemed}`} highlight />
+            )}
+            {receipt.coins_earned > 0 && (
+              <Row label="Coins earned" value={`+${receipt.coins_earned}`} highlight />
+            )}
+            <Row label="New coin balance" value={`${receipt.coins_balance_after}`} />
+          </Card.Content>
+        </Card>
+        <Button mode="contained" icon="plus" onPress={handleReset} style={styles.button} contentStyle={styles.buttonContent}>
+          Next pickup
+        </Button>
+      </ScrollView>
+    );
+  }
+
+  if (lookup) {
+    const b = lookup.breakdown;
+    return (
+      <ScrollView contentContainerStyle={styles.container}>
+        <Text variant="headlineSmall" style={styles.heading}>Confirm Pickup</Text>
+        <Card style={styles.card} elevation={2}>
+          <Card.Content>
+            <Text variant="titleMedium" style={styles.cardName}>{lookup.name ?? lookup.mobile_number}</Text>
+            {lookup.name && <Text variant="bodySmall" style={styles.cardMobile}>{lookup.mobile_number}</Text>}
+            <Divider style={styles.divider} />
+            <Text variant="bodySmall" style={{ color: '#757575' }}>FILE</Text>
+            <Text variant="bodyMedium" numberOfLines={1} style={{ fontWeight: '600', color: '#212121' }}>
+              {lookup.file_name}
+            </Text>
+            <Divider style={styles.divider} />
+            <Row label={`${b.pages_to_print} pages × ${b.copies} copies`} value={`${b.pages_to_print * b.copies} printouts`} />
+            <Row label={`${b.color_mode === 'color' ? 'Color' : 'B & W'} @ ₹${b.rate_per_page.toFixed(2)}/page`} value={`₹${b.subtotal.toFixed(2)}`} />
+            {b.coins_to_redeem > 0 && (
+              <Row label={`Coins redeemed (${b.coins_to_redeem})`} value={`−₹${b.coin_value.toFixed(2)}`} highlight />
+            )}
+            <Divider style={styles.divider} />
+            <Row label="Collect in cash" value={`₹${b.final_amount.toFixed(2)}`} bold />
+          </Card.Content>
+        </Card>
+        {!!error && <HelperText type="error" visible>{error}</HelperText>}
+        <Button
+          mode="contained"
+          icon="cash-check"
+          onPress={() => collectMutation.mutate()}
+          loading={collectMutation.isPending}
+          disabled={collectMutation.isPending}
+          style={styles.button}
+          contentStyle={styles.buttonContent}
+        >
+          Mark collected & record cash
+        </Button>
+        <Button mode="text" onPress={handleReset} disabled={collectMutation.isPending} style={{ marginTop: 4 }}>
+          Cancel
+        </Button>
+      </ScrollView>
+    );
+  }
+
+  return (
+    <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
+      <Text variant="headlineSmall" style={styles.heading}>Print Pickup</Text>
+      <Text variant="bodyMedium" style={styles.sub}>
+        Type the customer's 4-digit pickup OTP to see their print job and collect payment.
+      </Text>
+      <TextInput
+        label="Pickup OTP"
+        value={otpDigits}
+        onChangeText={(t) => { setOtpDigits(t.replace(/[^0-9]/g, '').slice(0, 4)); setError(''); }}
+        mode="outlined"
+        keyboardType="number-pad"
+        maxLength={4}
+        style={styles.input}
+        left={<TextInput.Icon icon="key-variant" />}
+      />
+      {!!error && <HelperText type="error" visible>{error}</HelperText>}
+      <Button
+        mode="contained"
+        icon="printer-search"
+        onPress={handleLookup}
+        loading={lookupMutation.isPending}
+        disabled={lookupMutation.isPending || otpDigits.length !== 4}
+        style={styles.button}
+        contentStyle={styles.buttonContent}
+      >
+        Look up print job
+      </Button>
+    </ScrollView>
+  );
+}
+
+
+// ══════════════════════════════════════════════════════════════════════════════
 // Root screen
 // ══════════════════════════════════════════════════════════════════════════════
 
@@ -621,13 +784,14 @@ export default function AdminScreen() {
           onValueChange={(v) => setTab(v as AdminTab)}
           buttons={[
             { value: 'checkout', label: 'Checkout', icon: 'cash-register' },
+            { value: 'print', label: 'Print', icon: 'printer' },
             { value: 'offers', label: 'Offers', icon: 'tag-multiple' },
           ]}
           style={styles.segmentedButtons}
         />
       </View>
 
-      {tab === 'checkout' ? <CheckoutPanel /> : <OffersPanel />}
+      {tab === 'checkout' ? <CheckoutPanel /> : tab === 'print' ? <PrintPickupPanel /> : <OffersPanel />}
     </View>
   );
 }
