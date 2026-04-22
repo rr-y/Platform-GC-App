@@ -71,19 +71,29 @@ export async function uploadPrintFile(
   uri: string,
   name: string,
   mimeType: string,
+  file?: File | Blob | null,
 ): Promise<PrintUpload> {
-  // Use native fetch instead of the shared axios client so the React Native
-  // runtime assembles the multipart body itself. axios has repeatedly landed
-  // us with a `Content-Type: multipart/form-data` header stripped of its
-  // boundary, or a FormData body that its transform pipeline serialises to
-  // a string — in either case FastAPI's UploadFile sees the `file` field as
-  // plain text and returns 422 "Expected UploadFile, received: <class 'str'>".
+  // Native fetch (not the axios client) so the runtime assembles the multipart
+  // body itself — axios has repeatedly returned the `file` field to FastAPI as
+  // a plain string.
   //
-  // RN's fetch + FormData reliably emits a multipart part with a filename,
-  // which is the attribute Pydantic's UploadFile validator keys off to tell a
-  // file upload apart from a regular form field.
+  // Platform split:
+  //   - Web: expo-document-picker gives us `asset.file` (a real `File`). Append
+  //     that directly so the browser's multipart builder attaches a proper
+  //     filename and Content-Type part.
+  //   - React Native: there is no `File`. RN's FormData accepts the magic
+  //     `{ uri, name, type }` shape and the native bridge turns it into a
+  //     multipart part with a filename. The TS cast keeps the types happy.
+  //
+  // Using the wrong shape on either platform makes the `file` part arrive
+  // without a filename, which is exactly what triggers
+  // "Expected UploadFile, received: <class 'str'>" from Pydantic.
   const form = new FormData();
-  form.append('file', { uri, name, type: mimeType } as unknown as Blob);
+  if (file) {
+    form.append('file', file, name);
+  } else {
+    form.append('file', { uri, name, type: mimeType } as unknown as Blob);
+  }
 
   const token = await getAccessToken();
   const res = await fetch(`${UPLOAD_BASE_URL}/print/upload`, {

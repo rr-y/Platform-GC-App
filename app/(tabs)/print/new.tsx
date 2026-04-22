@@ -21,7 +21,10 @@ export default function NewPrintScreen() {
         : asset.name.toLowerCase().endsWith('.png')
         ? 'image/png'
         : 'image/jpeg');
-      return uploadPrintFile(asset.uri, asset.name, mime);
+      // `asset.file` is populated on web only — a real File object. Pass it
+      // through so the upload uses the browser's multipart builder instead of
+      // the RN-only { uri, name, type } idiom.
+      return uploadPrintFile(asset.uri, asset.name, mime, asset.file);
     },
     onSuccess: (data) => {
       router.replace({
