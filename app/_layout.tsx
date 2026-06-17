@@ -3,6 +3,7 @@ import { View, Text, Image, ActivityIndicator, StyleSheet } from 'react-native';
 import { Slot, useRouter, useSegments } from 'expo-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { PaperProvider, MD3LightTheme } from 'react-native-paper';
+import * as Notifications from 'expo-notifications';
 import { useAuthStore } from '../src/store/auth';
 import { registerPushToken } from '../src/api/users';
 import { getPushToken } from '../src/utils/notifications';
@@ -69,6 +70,25 @@ function AuthGuard() {
         console.warn('[push] token registration skipped:', e);
       }
     })();
+  }, [isAuthenticated]);
+
+  // Route deep-linked notification taps. Today we only handle `print_ready`
+  // (sent from app/services/notifications.py::send_print_ready) — tap the
+  // notification, land on the matching print job page with OTP + amount.
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const sub = Notifications.addNotificationResponseReceivedListener((event) => {
+      const data = (event.notification.request.content.data ?? {}) as {
+        type?: string;
+        job_id?: string;
+      };
+      if (data.type === 'print_ready' && data.job_id) {
+        router.push({ pathname: '/(tabs)/print/[id]', params: { id: data.job_id } });
+      } else if (data.type === 'print_ready') {
+        router.push('/(tabs)/print');
+      }
+    });
+    return () => sub.remove();
   }, [isAuthenticated]);
 
   if (showSplash) return <GCSplashScreen />;
